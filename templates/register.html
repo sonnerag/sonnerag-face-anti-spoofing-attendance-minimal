@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Register Student - Face Anti-Spoofing Attendance System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-user-plus me-2"></i>
+                    Register New Student
+                </h3>
+            </div>
+            <div class="card-body p-4">
+                <form id="registrationForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="studentName" class="form-label fw-bold">
+                                    <i class="fas fa-user me-1"></i>Student Name
+                                </label>
+                                <input type="text" class="form-control form-control-lg" id="studentName" 
+                                       placeholder="Enter student name" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="studentId" class="form-label fw-bold">
+                                    <i class="fas fa-id-card me-1"></i>Student ID (Optional)
+                                </label>
+                                <input type="text" class="form-control form-control-lg" id="studentId" 
+                                       placeholder="Enter student ID">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="email" class="form-label fw-bold">
+                                    <i class="fas fa-envelope me-1"></i>Email (Optional)
+                                </label>
+                                <input type="email" class="form-control form-control-lg" id="email" 
+                                       placeholder="Enter email address">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-camera me-1"></i>Face Photo
+                                </label>
+                                <div class="camera-container mb-3">
+                                    <video id="video" autoplay playsinline></video>
+                                    <canvas id="canvas" style="display: none;"></canvas>
+                                    <div id="cameraOverlay" class="camera-overlay">
+                                        <div class="text-center">
+                                            <i class="fas fa-camera fa-2x mb-2"></i>
+                                            <p>Click "Start Camera" to begin</p>
+                                        </div>
+                                    </div>
+                                    <div id="statusIndicator" class="status-indicator"></div>
+                                </div>
+                                
+                                <div class="d-grid gap-2">
+                                    <button type="button" id="startCamera" class="btn btn-primary">
+                                        <i class="fas fa-camera me-2"></i>Start Camera
+                                    </button>
+                                    <button type="button" id="capturePhoto" class="btn btn-success" style="display: none;">
+                                        <i class="fas fa-camera-retro me-2"></i>Capture Photo
+                                    </button>
+                                    <button type="button" id="retakePhoto" class="btn btn-warning" style="display: none;">
+                                        <i class="fas fa-redo me-2"></i>Retake Photo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="previewSection" class="mb-3" style="display: none;">
+                        <h5 class="fw-bold mb-3">
+                            <i class="fas fa-eye me-2"></i>Captured Photo
+                        </h5>
+                        <div class="text-center">
+                            <img id="previewImage" class="img-fluid rounded" style="max-height: 300px; border: 3px solid #dee2e6;">
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" id="registerBtn" class="btn btn-success btn-lg" disabled>
+                            <i class="fas fa-user-plus me-2"></i>Register Student
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="result" class="mt-4" style="display: none;">
+                    <div class="alert" role="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let stream = null;
+let capturedPhoto = null;
+
+// Camera controls
+document.getElementById('startCamera').addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user'
+            } 
+        });
+        
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+        
+        document.getElementById('cameraOverlay').style.display = 'none';
+        document.getElementById('startCamera').style.display = 'none';
+        document.getElementById('capturePhoto').style.display = 'block';
+        
+        // Show live status indicator
+        const statusIndicator = document.getElementById('statusIndicator');
+        statusIndicator.classList.add('live');
+        
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        showResult('Error accessing camera. Please check permissions.', 'danger');
+    }
+});
+
+document.getElementById('capturePhoto').addEventListener('click', () => {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const context = canvas.getContext('2d');
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0);
+    
+    capturedPhoto = canvas.toDataURL('image/jpeg');
+    
+    document.getElementById('previewImage').src = capturedPhoto;
+    document.getElementById('previewSection').style.display = 'block';
+    document.getElementById('capturePhoto').style.display = 'none';
+    document.getElementById('retakePhoto').style.display = 'block';
+    document.getElementById('registerBtn').disabled = false;
+    
+    // Stop camera stream
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+});
+
+document.getElementById('retakePhoto').addEventListener('click', () => {
+    capturedPhoto = null;
+    document.getElementById('previewSection').style.display = 'none';
+    document.getElementById('retakePhoto').style.display = 'none';
+    document.getElementById('registerBtn').disabled = true;
+    
+    // Restart camera
+    document.getElementById('startCamera').click();
+});
+
+// Form submission
+document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    if (!capturedPhoto) {
+        showResult('Please capture a photo first.', 'warning');
+        return;
+    }
+    
+    const studentName = document.getElementById('studentName').value.trim();
+    if (!studentName) {
+        showResult('Please enter student name.', 'warning');
+        return;
+    }
+    
+    // Show loading state
+    const registerBtn = document.getElementById('registerBtn');
+    const originalText = registerBtn.innerHTML;
+    registerBtn.innerHTML = '<span class="loading me-2"></span>Processing...';
+    registerBtn.disabled = true;
+    
+    try {
+        const response = await fetch('{{ url_for("register") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: studentName,
+                photo: capturedPhoto
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showResult(data.message, 'success');
+            // Reset form
+            document.getElementById('registrationForm').reset();
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('retakePhoto').style.display = 'none';
+            document.getElementById('registerBtn').disabled = true;
+            capturedPhoto = null;
+        } else {
+            showResult(data.error, 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showResult('An error occurred. Please try again.', 'danger');
+    } finally {
+        registerBtn.innerHTML = originalText;
+        registerBtn.disabled = false;
+    }
+});
+
+function showResult(message, type) {
+    const result = document.getElementById('result');
+    const alert = result.querySelector('.alert');
+    
+    alert.className = `alert alert-${type}`;
+    alert.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+        ${message}
+    `;
+    result.style.display = 'block';
+    
+    // Auto-hide success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            result.style.display = 'none';
+        }, 5000);
+    }
+}
+</script>
+{% endblock %} 

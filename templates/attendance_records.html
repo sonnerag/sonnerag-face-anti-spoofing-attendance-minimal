@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Records - Face Anti-Spoofing Attendance System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Attendance Records
+                </h3>
+            </div>
+            <div class="card-body p-4">
+                {% if records %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>
+                                    <i class="fas fa-user me-1"></i>Student Name
+                                </th>
+                                <th>
+                                    <i class="fas fa-calendar me-1"></i>Date
+                                </th>
+                                <th>
+                                    <i class="fas fa-clock me-1"></i>Time
+                                </th>
+                                <th>
+                                    <i class="fas fa-shield-alt me-1"></i>Liveness Score
+                                </th>
+                                <th>
+                                    <i class="fas fa-info-circle me-1"></i>Status
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for attendance, student in records %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar me-3">
+                                            <i class="fas fa-user-circle fa-2x text-primary"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="mb-0 fw-bold">{{ student.name }}</h6>
+                                            <small class="text-muted">ID: {{ student.id }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ attendance.date.strftime('%B %d, %Y') }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-muted">{{ attendance.date.strftime('%I:%M %p') }}</span>
+                                </td>
+                                <td>
+                                    {% if attendance.liveness_score %}
+                                        {% set liveness_percent = (attendance.liveness_score * 100) | round %}
+                                        {% if liveness_percent >= 80 %}
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>{{ liveness_percent }}%
+                                            </span>
+                                        {% elif liveness_percent >= 60 %}
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>{{ liveness_percent }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-danger">
+                                                <i class="fas fa-times-circle me-1"></i>{{ liveness_percent }}%
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-question-circle me-1"></i>N/A
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if attendance.liveness_score and attendance.liveness_score >= 0.6 %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Verified
+                                        </span>
+                                    {% elif attendance.liveness_score %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>Low Confidence
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-info-circle me-1"></i>Legacy Record
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title fw-bold">
+                                    <i class="fas fa-chart-bar me-2"></i>Statistics
+                                </h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h4 class="text-primary fw-bold">{{ records|length }}</h4>
+                                        <small class="text-muted">Total Records</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-success fw-bold">
+                                            {{ records|selectattr('0.liveness_score', '>=', 0.6)|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Verified Records</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title fw-bold">
+                                    <i class="fas fa-users me-2"></i>Students
+                                </h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h4 class="text-info fw-bold">
+                                            {{ records|map(attribute='1.name')|unique|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Unique Students</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-warning fw-bold">
+                                            {{ records|selectattr('0.date', '>=', today)|list|length }}
+                                        </h4>
+                                        <small class="text-muted">Today's Records</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-clipboard-list fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Attendance Records</h4>
+                    <p class="text-muted">No attendance records have been created yet.</p>
+                    <a href="{{ url_for('mark_attendance') }}" class="btn btn-primary">
+                        <i class="fas fa-camera me-2"></i>Mark First Attendance
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

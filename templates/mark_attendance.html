@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Mark Attendance - Face Anti-Spoofing Attendance System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3 class="card-title mb-0">
+                    <i class="fas fa-camera me-2"></i>
+                    Mark Attendance
+                </h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="camera-container mb-4">
+                            <video id="video" autoplay playsinline></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                            <div id="cameraOverlay" class="camera-overlay">
+                                <div class="text-center">
+                                    <i class="fas fa-camera fa-3x mb-3"></i>
+                                    <h5>Face Recognition Camera</h5>
+                                    <p>Click "Start Camera" to begin attendance marking</p>
+                                    <div class="mt-3">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        <span>Anti-spoofing protection enabled</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="statusIndicator" class="status-indicator"></div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="button" id="startCamera" class="btn btn-primary btn-lg">
+                                <i class="fas fa-camera me-2"></i>Start Camera
+                            </button>
+                            <button type="button" id="markAttendance" class="btn btn-success btn-lg" style="display: none;">
+                                <i class="fas fa-check-circle me-2"></i>Mark Attendance
+                            </button>
+                            <button type="button" id="stopCamera" class="btn btn-secondary btn-lg" style="display: none;">
+                                <i class="fas fa-stop me-2"></i>Stop Camera
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>Status
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="statusInfo">
+                                    <div class="text-center text-muted">
+                                        <i class="fas fa-camera fa-2x mb-2"></i>
+                                        <p>Camera not started</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card mt-3">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Instructions
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-2">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        Position your face in the camera
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        Ensure good lighting
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        Look directly at the camera
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        Wait for face detection
+                                    </li>
+                                    <li>
+                                        <i class="fas fa-check text-success me-2"></i>
+                                        Click "Mark Attendance" when ready
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="result" class="mt-4" style="display: none;">
+                    <div class="alert" role="alert"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let stream = null;
+let isProcessing = false;
+
+// Camera controls
+document.getElementById('startCamera').addEventListener('click', async () => {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 640 },
+                height: { ideal: 480 },
+                facingMode: 'user'
+            } 
+        });
+        
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+        
+        document.getElementById('cameraOverlay').style.display = 'none';
+        document.getElementById('startCamera').style.display = 'none';
+        document.getElementById('markAttendance').style.display = 'block';
+        document.getElementById('stopCamera').style.display = 'block';
+        
+        // Show live status indicator
+        const statusIndicator = document.getElementById('statusIndicator');
+        statusIndicator.classList.add('live');
+        
+        updateStatus('Camera started', 'Camera is ready for face recognition', 'info');
+        
+    } catch (error) {
+        console.error('Error accessing camera:', error);
+        showResult('Error accessing camera. Please check permissions.', 'danger');
+    }
+});
+
+document.getElementById('stopCamera').addEventListener('click', () => {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    
+    document.getElementById('cameraOverlay').style.display = 'flex';
+    document.getElementById('startCamera').style.display = 'block';
+    document.getElementById('markAttendance').style.display = 'none';
+    document.getElementById('stopCamera').style.display = 'none';
+    
+    const statusIndicator = document.getElementById('statusIndicator');
+    statusIndicator.classList.remove('live');
+    
+    updateStatus('Camera stopped', 'Click "Start Camera" to begin', 'secondary');
+});
+
+document.getElementById('markAttendance').addEventListener('click', async () => {
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    const markBtn = document.getElementById('markAttendance');
+    const originalText = markBtn.innerHTML;
+    markBtn.innerHTML = '<span class="loading me-2"></span>Processing...';
+    markBtn.disabled = true;
+    
+    try {
+        // Capture photo from video
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0);
+        
+        const photoData = canvas.toDataURL('image/jpeg');
+        
+        updateStatus('Processing', 'Analyzing face and checking liveness...', 'warning');
+        
+        // Send to server
+        const response = await fetch('{{ url_for("mark_attendance") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                photo: photoData
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showResult(data.message, 'success');
+            updateStatus('Success', `Attendance marked for ${data.student_name}`, 'success');
+            
+            // Show liveness score if available
+            if (data.liveness_score) {
+                const livenessPercent = Math.round(data.liveness_score * 100);
+                updateStatus('Success', `Attendance marked for ${data.student_name} (Liveness: ${livenessPercent}%)`, 'success');
+            }
+        } else {
+            showResult(data.error, 'danger');
+            updateStatus('Error', data.error, 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showResult('An error occurred. Please try again.', 'danger');
+        updateStatus('Error', 'Network error occurred', 'danger');
+    } finally {
+        markBtn.innerHTML = originalText;
+        markBtn.disabled = false;
+        isProcessing = false;
+    }
+});
+
+function updateStatus(title, message, type) {
+    const statusInfo = document.getElementById('statusInfo');
+    const iconClass = {
+        'info': 'fas fa-info-circle text-info',
+        'success': 'fas fa-check-circle text-success',
+        'warning': 'fas fa-exclamation-triangle text-warning',
+        'danger': 'fas fa-times-circle text-danger',
+        'secondary': 'fas fa-camera text-secondary'
+    };
+    
+    statusInfo.innerHTML = `
+        <div class="text-center">
+            <i class="${iconClass[type]} fa-2x mb-2"></i>
+            <h6 class="fw-bold">${title}</h6>
+            <p class="text-muted mb-0">${message}</p>
+        </div>
+    `;
+}
+
+function showResult(message, type) {
+    const result = document.getElementById('result');
+    const alert = result.querySelector('.alert');
+    
+    alert.className = `alert alert-${type}`;
+    alert.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+        ${message}
+    `;
+    result.style.display = 'block';
+    
+    // Auto-hide success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            result.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Auto-start camera when page loads (optional)
+// document.addEventListener('DOMContentLoaded', () => {
+//     setTimeout(() => {
+//         document.getElementById('startCamera').click();
+//     }, 1000);
+// });
+</script>
+{% endblock %} 
