@@ -202,7 +202,3 @@ For support and questions:
 ---
 
 **Note**: This system is designed for educational and research purposes. For production use, additional security measures and compliance checks should be implemented. 
-=======
-# face-anti-spoofing-attendance
-Attack-Resistant Biometric Attendance Management System
->>>>>>> ade3b74f88078dff57c5f86969e98589be778810
